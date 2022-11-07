@@ -1,0 +1,105 @@
+---
+-   name: setting up the details for this deployment
+    hosts: all
+    remote_user: root
+
+
+    tasks:
+
+        - name: check if .env.example exists
+          tags: do
+          stat:
+              path: /var/www/danielworld/.env.example
+          register: env_exist
+
+        - name: remove .env.example
+          tags: do
+          file:
+              path: /var/www/danielworld/.env.example
+              state: absent
+          when: env_exist.stat.exists == true
+
+        - name: copy .env file to server
+          tags: do
+          copy:
+              src: .env
+              dest: /var/www/danielworld
+              remote_src: false
+
+        - name: change file permissions
+          tags: do
+          file:
+              path: /var/www/danielworld
+              owner: www-data
+              group: www-data
+              mode: 0777
+              modification_time: now
+              recurse: yes
+
+        - name: change file storage permissions
+          tags: do
+          file:
+              path: /var/www/danielworld
+              group: www-data
+              mode: 0775
+              modification_time: now
+              recurse: yes
+    tags: do
+          file:
+              path: /var/www/danielworld
+              group: www-data
+              mode: 0775
+              modification_time: now
+              recurse: yes
+
+        - name: composer install
+          shell:
+               cmd: composer install --no-interaction
+               chdir: /var/www/danielworld
+
+        - name: generate app key
+          shell:
+               cmd: php artisan key:generate
+               chdir: /var/www/danielworld
+
+        - name: cache
+          tags: cache
+          shell:
+               cmd: php artisan config:cache
+               chdir: /var/www/danielworld
+
+        - name: migrate seed
+          tags: seed
+          shell:
+               cmd: php artisan migrate:refresh
+               chdir: /var/www/danielworld
+
+        - name: migrate seed
+          tags: seed
+          shell:
+               cmd: php artisan migrate:refresh --seed
+               chdir: /var/www/danielworld
+
+        - name: copy conf file
+          tags: conf
+          copy:
+              src: danielworld.conf
+              dest: /etc/apache2/sites-available
+   - name: disable apache2 file
+          tags: conf
+          shell:
+               cmd: a2dissite 000-default.conf
+               chdir: /etc/apache2/sites-available
+
+        - name: enable apache2 file
+          tags: conf
+          shell:
+               cmd: a2ensite danielworld.conf
+               chdir: /etc/apache2/sites-available
+
+        - name: restart apache2
+          tags: apache2
+          shell:
+               cmd: systemctl restart apache2
+
+
